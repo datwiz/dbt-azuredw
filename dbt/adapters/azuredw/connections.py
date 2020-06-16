@@ -3,47 +3,28 @@ from contextlib import contextmanager
 import pyodbc
 import time
 
-import dbt.compat
+# import dbt.compat
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
 
 from dbt.logger import GLOBAL_LOGGER as logger
 
-AZUREDW_CREDENTIALS_CONTRACT = {
-    'type': 'object',
-    'additionalProperties': False,
-    'properties': {
-        'driver': {
-            'type': 'string',
-        },
-        'host': {
-            'type': 'string',
-        },
-        'database': {
-            'type': 'string',
-        },
-        'schema': {
-            'type': 'string',
-        },
-        'UID': {
-            'type': 'string',
-        },
-        'PWD': {
-            'type': 'string',
-        },
-        'authentication': {
-            'type': 'string',
-            'enum': ['ActiveDirectoryIntegrated','ActiveDirectoryMSI','ActiveDirectoryPassword','SqlPassword','TrustedConnection']
-        }
-    },
-    'required': ['driver','host', 'database', 'schema','authentication'],
-}
+from dataclasses import dataclass
+from typing import Optional
 
 
+@dataclass
 class AzureDWCredentials(Credentials):
-    SCHEMA = AZUREDW_CREDENTIALS_CONTRACT;
-    ALIASES = {
+    driver: str
+    host: str
+    database: str
+    schema: str
+    UID: str
+    PWD: str
+    authentication: str
+
+    _ALIASES = {
         'user': 'UID'
         , 'username': 'UID'
         , 'pass': 'PWD'
@@ -71,6 +52,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
 
         except pyodbc.DatabaseError as e:
             logger.debug('Database error: {}'.format(str(e)))
+            logger.debug('SQL: {}'.format(sql))
 
             try:
                 # attempt to release the connection
@@ -79,8 +61,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
                 logger.debug("Failed to release connection!")
                 pass
 
-            raise dbt.exceptions.DatabaseException(
-                dbt.compat.to_string(e).strip())
+            raise dbt.exceptions.DatabaseException(str(e).strip()) from e
 
         except Exception as e:
             logger.debug("Error running SQL: %s", sql)
@@ -92,7 +73,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
                 # useful information, so raise it without modification.
                 raise
 
-            raise dbt.exceptions.RuntimeException(e)
+            raise dbt.exceptions.RuntimeException(e) from e
 
     def add_query(self, sql, auto_begin=True, bindings=None,
                   abridge_sql_log=False):
@@ -106,9 +87,9 @@ class AzureDWConnectionManager(SQLConnectionManager):
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug('On %s: %s....', connection.name, sql[0:512])
+                logger.debug('On {}: {}...'.format(connection.name, sql[0:512]))
             else:
-                logger.debug('On %s: %s', connection.name, sql)
+                logger.debug('On {}: {}'.format(connection.name, sql))
             pre = time.time()
 
             cursor = connection.handle.cursor()
@@ -132,9 +113,8 @@ class AzureDWConnectionManager(SQLConnectionManager):
             logger.debug('Connection is already open, skipping open.')
             return connection
 
-        credentials = connection.credentials
+        credentials = cls.get_credentials(connection.credentials)
         
-
         MASKED_PWD=credentials.PWD[0] + ("*" * len(credentials.PWD))[:-2] + credentials.PWD[-1]
         try:
             con_str = []
@@ -185,6 +165,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
         return 'OK'
 
     def execute(self, sql, auto_begin=False, fetch=False):
+        logger.debug('azuredw execute: {}'.format(sql))
         _, cursor = self.add_query(sql, auto_begin)
         status = self.get_status(cursor)
         if fetch:

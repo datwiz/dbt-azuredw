@@ -35,7 +35,7 @@
   {{ return(load_result('check_schema_exists').table) }}
 {% endmacro %}
 
-{% macro azuredw__list_relations_without_caching(information_schema, schema) %}
+{% macro azuredw__list_relations_without_caching(schema_relation) %}
   {% call statement('list_relations_without_caching', fetch_result=True) -%}
     select
       table_catalog as [database],
@@ -45,9 +45,9 @@
            when table_type = 'VIEW' then 'view'
            else table_type
       end as table_type
-    from {{ information_schema }}.tables
-    where table_schema = '{{ schema }}'
-      and table_catalog = '{{ information_schema.database.lower() }}'
+    from {{ schema_relation.database }}.information_schema.tables
+    where table_schema = '{{ schema_relation.schema }}'
+      and table_catalog = '{{ schema_relation.database }}'
   {% endcall %}
   {{ return(load_result('list_relations_without_caching').table) }}
 {% endmacro %}
