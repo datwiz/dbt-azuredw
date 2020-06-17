@@ -3,7 +3,6 @@ from contextlib import contextmanager
 import pyodbc
 import time
 
-# import dbt.compat
 import dbt.exceptions
 from dbt.adapters.base import Credentials
 from dbt.adapters.sql import SQLConnectionManager
@@ -19,7 +18,6 @@ class AzureDWCredentials(Credentials):
     driver: str
     host: str
     database: str
-    schema: str
     UID: str
     PWD: str
     authentication: str
@@ -39,7 +37,7 @@ class AzureDWCredentials(Credentials):
     def _connection_keys(self):
         # return an iterator of keys to pretty-print in 'dbt debug'
         # raise NotImplementedError
-        return ('server', 'database', 'schema', 'UID', 'authentication',)
+        return ('driver', 'server', 'database', 'schema', 'UID', 'authentication',)
 
 
 class AzureDWConnectionManager(SQLConnectionManager):
@@ -51,21 +49,21 @@ class AzureDWConnectionManager(SQLConnectionManager):
             yield
 
         except pyodbc.DatabaseError as e:
-            logger.debug('Database error: {}'.format(str(e)))
-            logger.debug('SQL: {}'.format(sql))
+            logger.debug(f'Database error: {str(e)}')
+            logger.debug(f'SQL: {sql}')
 
             try:
                 # attempt to release the connection
                 self.release()
             except pyodbc.Error:
-                logger.debug("Failed to release connection!")
+                logger.debug('Failed to release connection!')
                 pass
 
             raise dbt.exceptions.DatabaseException(str(e).strip()) from e
 
         except Exception as e:
-            logger.debug("Error running SQL: %s", sql)
-            logger.debug("Rolling back transaction.")
+            logger.debug(f'Error running SQL: {sql}')
+            logger.debug('Rolling back transaction.')
             self.release()
             if isinstance(e, dbt.exceptions.RuntimeException):
                 # during a sql query, an internal to dbt exception was raised.
@@ -82,14 +80,13 @@ class AzureDWConnectionManager(SQLConnectionManager):
         if auto_begin and connection.transaction_open is False:
             self.begin()
 
-        logger.debug('Using {} connection "{}".'
-                     .format(self.TYPE, connection.name))
+        logger.debug(f'Using {self.TYPE} connection "{connection.name}".')
 
         with self.exception_handler(sql):
             if abridge_sql_log:
-                logger.debug('On {}: {}...'.format(connection.name, sql[0:512]))
+                logger.debug(f'On {connection.name}: {sql[0:512]}...')
             else:
-                logger.debug('On {}: {}'.format(connection.name, sql))
+                logger.debug(f'On {connection.name}: {sql}')
             pre = time.time()
 
             cursor = connection.handle.cursor()
@@ -101,8 +98,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
                 logger.debug(f'bindings set as {bindings}')
                 cursor.execute(sql, bindings)
 
-            logger.debug("SQL status: %s in %0.2f seconds",
-                         self.get_status(cursor), (time.time() - pre))
+            logger.debug(f'SQL status: {self.get_status(cursor)} in {time.time() - pre:.2f} seconds')
 
             return connection, cursor
 
@@ -118,19 +114,19 @@ class AzureDWConnectionManager(SQLConnectionManager):
         MASKED_PWD=credentials.PWD[0] + ("*" * len(credentials.PWD))[:-2] + credentials.PWD[-1]
         try:
             con_str = []
-            con_str.append(f"DRIVER={{{credentials.driver}}}")
-            con_str.append(f"SERVER={credentials.host}")
-            con_str.append(f"Database={credentials.database}")
+            con_str.append(f'DRIVER={{{credentials.driver}}}')
+            con_str.append(f'SERVER={credentials.host}')
+            con_str.append(f'Database={credentials.database}')
 
             if credentials.authentication == 'TrustedConnection':
-                con_str.append("trusted_connection=yes")
+                con_str.append('trusted_connection=yes')
             else:
-                con_str.append(f"AUTHENTICATION={credentials.authentication}")
-                con_str.append(f"UID={credentials.UID}")
-                con_str.append(f"PWD={credentials.PWD}")
+                con_str.append(f'AUTHENTICATION={credentials.authentication}')
+                con_str.append(f'UID={credentials.UID}')
+                con_str.append(f'PWD={credentials.PWD}')
 
             con_str_concat = ';'.join(con_str)
-            con_str[-1] = f"PWD={MASKED_PWD}"
+            con_str[-1] = f'PWD={MASKED_PWD}'
             con_str_masked = ';'.join(con_str)
 
             logger.debug(f'Using connection string: {con_str_masked}')
@@ -143,7 +139,7 @@ class AzureDWConnectionManager(SQLConnectionManager):
             logger.debug(f'Connected to db: {credentials.database}')
         
         except pyodbc.Error as e:
-            logger.debug(f"Could not connect to db: {e}")
+            logger.debug(f'Could not connect to db: {e}')
 
             connection.handle = None
             connection.state = 'fail'
@@ -165,7 +161,6 @@ class AzureDWConnectionManager(SQLConnectionManager):
         return 'OK'
 
     def execute(self, sql, auto_begin=False, fetch=False):
-        logger.debug('azuredw execute: {}'.format(sql))
         _, cursor = self.add_query(sql, auto_begin)
         status = self.get_status(cursor)
         if fetch:

@@ -1,16 +1,15 @@
 {% macro azuredw__list_schemas(database) %}
-    {% call statement('list_schemas', fetch_result=True, auto_begin=False) -%}
+  {% set sql -%}
         select distinct schema_name
         from {{ database }}.information_schema.schemata
         where catalog_name = '{{ database }}'
-    {%- endcall %}
-
-    {{ return(load_result('list_schemas').table) }}
+  {%- endset %}
+  {{ return(run_query(sql)) }}
 {% endmacro %}
 
-{% macro azuredw__create_schema(database_name, schema_name, auto_begin=False) %}
-    {% call statement('create_schema') -%}
-        create schema {{ schema_name }}
+{% macro azuredw__create_schema(relation) %}
+    {% call statement('create_schema', auto_begin=False) -%}
+        create schema {{ relation.without_identifier() }}
     {%- endcall %}
 {% endmacro %}
 
@@ -21,22 +20,17 @@
     {%- endcall %}
 {% endmacro %}
 
-{% macro azuredw__truncate_relation(relation) -%}
-    {% call statement('truncate_relation') -%}
-        truncate table {{ relation }}
-    {%- endcall %}
-{% endmacro %}
-
-{% macro azuredw__check_schema_exists(database, schema) -%}
-  {% call statement('check_schema_exists', fetch_result=True, auto_begin=False) -%}
-    --use {{ database_name }}
-    select count(*) as schema_exist from sys.schemas where name = '{{ schema }}'
-  {%- endcall %}
-  {{ return(load_result('check_schema_exists').table) }}
+{% macro azuredw__check_schema_exists(information_schema, schema) -%}
+  {% set sql -%}
+    select count(*) as schema_exist
+    from {{ information_schema.replace(information_schema_view='SCHEMATA') }}
+    where name = '{{ schema }}'
+  {%- endset %}
+  {{ return(run_query(sql)) }}
 {% endmacro %}
 
 {% macro azuredw__list_relations_without_caching(schema_relation) %}
-  {% call statement('list_relations_without_caching', fetch_result=True) -%}
+  {% set sql -%}
     select
       table_catalog as [database],
       table_name as [name],
@@ -48,8 +42,8 @@
     from {{ schema_relation.database }}.information_schema.tables
     where table_schema = '{{ schema_relation.schema }}'
       and table_catalog = '{{ schema_relation.database }}'
-  {% endcall %}
-  {{ return(load_result('list_relations_without_caching').table) }}
+  {% endset -%}
+  {{ return(run_query(sql)) }}
 {% endmacro %}
 
 {% macro azuredw__make_temp_relation(base_relation, suffix) %}
@@ -75,13 +69,11 @@
   )
   as 
     {{ sql }}
- 
 {% endmacro %}
 
 {% macro azuredw__create_view_as(relation, sql, auto_begin=False) -%}
-  create view {{ relation.schema }}.{{ relation.identifier }} as (
+  create view {{ relation.schema }}.{{ relation.identifier }} as
     {{ sql }}
-  );
 {% endmacro %}
 
 {% macro azuredw__rename_relation(from_relation, to_relation) -%}
@@ -91,7 +83,7 @@
 {% endmacro %}
 
 {% macro azuredw__get_columns_in_relation(relation) -%}
-    {% call statement('get_columns_in_relation', fetch_result=True) %}
+    {% set sql -%}
         select 
             column_name
             , data_type
@@ -104,10 +96,8 @@
             table_catalog    = '{{ relation.database }}'
             and table_schema = '{{ relation.schema }}'
             and table_name   = '{{ relation.identifier }}'
-    {% endcall %}
-
-    {% set table = load_result('get_columns_in_relation').table %}
-    {{ return(sql_convert_columns_in_relation(table)) }}
+    {% endset %}
+    {{ return(run_query(sql)) }}
 {% endmacro %}
 
 
