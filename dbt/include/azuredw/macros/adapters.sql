@@ -24,7 +24,7 @@
   {% set sql -%}
     select count(*) as schema_exist
     from {{ information_schema.replace(information_schema_view='SCHEMATA') }}
-    where name = '{{ schema }}'
+    where schema_name = '{{ schema }}'
   {%- endset %}
   {{ return(run_query(sql)) }}
 {% endmacro %}
