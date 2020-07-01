@@ -85,7 +85,7 @@
 {% macro azuredw__get_columns_in_relation(relation) -%}
     {% set sql -%}
         select 
-            column_name
+            column_name as [column]
             , data_type
             , character_maximum_length
             , numeric_precision
