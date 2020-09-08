@@ -1,3 +1,9 @@
+# --- NO LONGER BEING UPDATED ---
+As of 09-Sep-2020, this fork of the azure-dw dbt adaptor will no longer be maintained.  
+
+Refer to the newer [dbt-synapse](https://github.com/swanderz/dbt-synapse) adaptor for Azure Synapse with dbt.
+
+
 # dbt-azuredw
 
 dbt-azuredw is a custom adapter for [dbt](https://github.com/fishtown-analytics/dbt) that adds support for Azure SQL Data Warehouse.. pyodbc is used as the connection driver as that is what is [suggested by Microsoft](https://docs.microsoft.com/en-us/sql/connect/python/python-driver-for-sql-server). The adapter supports both windows auth, and specified user accounts.
