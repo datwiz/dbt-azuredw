@@ -47,18 +47,22 @@
 {% endmacro %}
 
 {% macro azuredw__make_temp_relation(base_relation, suffix) %}
-    {% set tmp_identifier = '#' ~ base_relation.identifier ~ suffix %}
+    {% set tmp_identifier = base_relation.identifier ~ suffix %}
     {% set tmp_relation = base_relation.incorporate(
-                                path={"identifier": tmp_identifier},
-                                table_name=tmp_identifier) -%}
+                                path={"identifier": tmp_identifier}) -%}
 
     {% do return(tmp_relation) %}
 {% endmacro %}
 
 {% macro azuredw__create_table_as(temporary, relation, sql) -%}
+
+{%- if temporary: -%}
+ {% do drop_relation(relation) %}
+{%- endif %}
+
 {%- set distribution = config.get('distribution') -%}
   create table
-    {{ relation.include(database=(not temporary), schema=(not temporary)) }}
+    {{ relation.include(database=(not temporary), schema=(relation.schema)) }}
   with(
     clustered columnstore index,
     {%- if temporary: -%}
@@ -70,6 +74,7 @@
   as 
     {{ sql }}
 {% endmacro %}
+
 
 {% macro azuredw__create_view_as(relation, sql, auto_begin=False) -%}
   create view {{ relation.schema }}.{{ relation.identifier }} as
@@ -86,6 +91,7 @@
     {% set sql -%}
         select 
             column_name as [column]
+            , column_name as [name]
             , data_type
             , character_maximum_length
             , numeric_precision
@@ -98,4 +104,9 @@
             and table_name   = '{{ relation.identifier }}'
     {% endset %}
     {{ return(run_query(sql)) }}
+{% endmacro %}
+
+{% macro azuredw__post_snapshot(staging_relation) %}
+  -- Clean up the snapshot temp table
+  {% do drop_relation(staging_relation) %}
 {% endmacro %}
